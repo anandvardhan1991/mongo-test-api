@@ -1,5 +1,7 @@
 var express = require('express');
 var bodyParser = require('body-parser');
+var _ = require('lodash');
+
 
 var {mongoose} = require('./db/mongoose');
 var {ToDos} = require('./models/todos');
@@ -8,7 +10,7 @@ var {ObjectID} = require('mongodb');
 
 var app = new express();
 
-const port = process.env.port || 3000;
+const port = process.env.PORT || 3000;
 
 app.use(bodyParser.json());
 
@@ -26,16 +28,22 @@ app.post('/todos',(req,res)=>{
 
 
 app.post('/users',(req,res)=>{
-    var newUser = new User({
-        name: req.body.name,
-        email: req.body.email,
-        age: req.body.age
-    });
+    var body = _.pick(req.body,['name','email','password']);
+    var newUser = new User(body
+        // {
+        // name : body.name,
+        // email: body.email,
+        // password: body.password
+    // }
+    );
 
-    newUser.save().then((doc)=>{
-        res.send(doc);
+    newUser.save().then(()=>{
+        // res.send(doc);
+        return newUser.generateAuthToken();
     },(err)=>{
         res.status(400).send(err);
+    }).then((token)=>{
+        res.header('x-auth',token).send(newUser);
     })
 });
 
