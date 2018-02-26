@@ -6,6 +6,7 @@ var _ = require('lodash');
 var {mongoose} = require('./db/mongoose');
 var {ToDos} = require('./models/todos');
 var {User} = require('./models/users');
+var {authenticate} = require('./middleware/authenticate');
 var {ObjectID} = require('mongodb');
 
 var app = new express();
@@ -97,7 +98,13 @@ app.get('/users/:id',(req,res)=>{
 });
 
 
-app.listen(3000,()=>{
+
+app.get('/auth/token',authenticate,(req,res)=>{
+    res.send(req.user);    
+});
+
+
+app.listen(port,()=>{
     console.log(`Started on ${port}`);    
 });
 
