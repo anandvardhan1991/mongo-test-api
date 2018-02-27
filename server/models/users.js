@@ -69,6 +69,31 @@ userSchema.statics.findByToken = function (token) {
     });
 };
 
+userSchema.statics.findByCred = function(email,password){
+    var User = this;
+    
+    return User.findOne({email}).then((user)=>{
+        if(!user){
+            return Promise.reject();
+        }
+        return new Promise((resolve,reject)=>{
+            bcryptjs.compare(password,user.password,(err,res)=>{
+                if(res){
+                    console.log('Resolve');
+                    
+                    resolve(user);
+                }
+                else { 
+                    console.log('Reject');
+                    reject();
+                }
+            });
+        });
+    },(err)=>{
+        return new Promise.reject();
+    });
+};
+
 userSchema.methods.toJSON = function() {
     var user = this;
     var userObject = user.toObject();
@@ -87,8 +112,21 @@ userSchema.pre('save',function (next){
     } else {
         next();
     }
+},(err)=>{
+    
 });
 
+userSchema.methods.removeToken = function (token){
+    var user = this;
+
+    return user.update({
+        $pull: {
+            tokens: {
+                token
+            }
+        }
+    });
+};
 
 
 var User = mongoose.model('User',userSchema);

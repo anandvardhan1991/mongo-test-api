@@ -1,6 +1,7 @@
 var express = require('express');
 var bodyParser = require('body-parser');
 var _ = require('lodash');
+const bcryptjs = require('bcryptjs');
 
 
 var {mongoose} = require('./db/mongoose');
@@ -15,9 +16,10 @@ const port = process.env.PORT || 3000;
 
 app.use(bodyParser.json());
 
-app.post('/todos',(req,res)=>{
+app.post('/todos', authenticate, (req,res)=>{
     var newTodo = new ToDos({
-        text: req.body.text
+        text: req.body.text,
+        _creator : req.user._id
     });
     
     newTodo.save().then((doc)=>{
@@ -49,8 +51,10 @@ app.post('/users',(req,res)=>{
 });
 
 
-app.get('/todos',(req , res) => {                       //Getting all todos
-    ToDos.find().then((todos)=>{
+app.get('/todos',authenticate , (req , res) => {                       //Getting all todos
+    ToDos.find({
+        _creator: req.user._id
+    }).then((todos)=>{
         res.send({
             todos                                       //Sending an object in response is the most viable way
         });
@@ -60,15 +64,18 @@ app.get('/todos',(req , res) => {                       //Getting all todos
 });
 
 
-app.get('/todos/:id',(req,res)=>{
+app.get('/todos/:id',authenticate , (req,res)=>{
     var id = req.params.id;
     if(!ObjectID.isValid(id)){
         return res.status(404).send({status : -1,text : 'Invalid ID Passed'});
     }
-    ToDos.findById(id).then((todo)=>{
+    ToDos.findOne({
+        _id : id,
+        _creator: req.user._id
+    }).then((todo)=>{
         if(!todo)
             return res.status(400).send({status : -1,text : 'Invalid ID Passed'});
-        res.send(todo);
+        res.status(200).send(todo);
     },(err)=>{
         res.status(404).send('Invalid ID passed');       
     })
@@ -101,6 +108,67 @@ app.get('/users/:id',(req,res)=>{
 
 app.get('/auth/token',authenticate,(req,res)=>{
     res.send(req.user);    
+});
+
+app.post('/users/login' , (req,res)=>{
+    var body = _.pick(req.body,['email','password']);
+
+    User.findByCred(body.email,body.password).then((user)=>{
+        user.generateAuthToken().then((token)=>{
+            res.header('x-auth',token).send(user);
+        },(err)=>{
+            res.status(400).send();
+        });
+    },(err)=>{
+        res.status(400).send();
+    })
+});
+
+app.delete('/todos/:id',authenticate,(req,res)=>{
+    var id = req.params.id;
+    ToDos.findOneAndRemove({
+        _id: id,
+        _creator: req.user._id
+    }).then((todo)=>{
+        if(!todo)
+            return res.status(404).send();
+        res.status(200).send(todo);
+    },(err)=>{
+        res.status(404).send();
+    });
+});
+
+app.delete('/users/logout',authenticate,(req,res)=>{
+    req.user.removeToken(req.token).then(()=>{
+        res.status(200).send();
+    },()=>{
+        res.status(400).send();
+    });
+});
+
+app.patch('/todos/:id',authenticate,(req,res)=>{
+    var id = req.params.id;
+    var body = _.pick(req.body,['text','completed']);
+    if(!ObjectID.isValid(id)){
+        return res.status(404).send();
+    }
+    if(_.isBoolean(body.completed) && body.completed)
+        body.completedAt = new Date().getTime();
+    else {
+        body.completedAt = null;
+        body.completed = false;
+    }
+
+    ToDos.findOneAndUpdate({
+        _id : id,
+        _creator : req.user._id
+    },{$set : body},{new : true}).then((todo)=>{
+        if(!todo)
+            return res.status(404).send();
+        res.status(200).send(todo);
+    },(err)=>{
+        res.status(404).send();
+    });
 });
 
 
